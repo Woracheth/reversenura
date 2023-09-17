@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+  <title></title>
+</head>
+
+<body>
+  press right to load image<br>press down to dump data (degree,frequency,gain) to console
+  <div style="display: none">
+    <img id="img" src="" />
+  </div>
+  <div id="output"></div>
+  <canvas id="output" />
+  <script>
+    const R = 0;
+    const G = 1;
+    const B = 2;
+    const A = 3;
+    let outputDiv = document.getElementById("output");
+
+    function getBorder(img) {
+      let sourceCanvas = document.createElement("canvas");
+      let workingCanvas = document.createElement("canvas");
+      let outputCanvas = document.createElement("canvas");
+
+      let width, height;
+      sourceCanvas.width =
+        workingCanvas.width =
+        outputCanvas.width =
+        width =
+        img.width;
+      sourceCanvas.height =
+        workingCanvas.height =
+        outputCanvas.height =
+        height =
+        img.height;
+
+      let RADIUS = 288;
+      let [CX, CY] = [width / 2, height / 2];
+      let BORDER = 500 - 288;
+
+      let sourceContext = sourceCanvas.getContext("2d");
+      sourceContext.drawImage(img, 0, 0);
+
+      let outputContext = outputCanvas.getContext("2d");
+      let workingContext = outputCanvas.getContext("2d");
+
+      let sourceImage = sourceContext.getImageData(0, 0, width, height);
+      let sourceImageData = sourceImage.data;
+      let workingImage = workingContext.getImageData(0, 0, width, height);
+      let workingData = workingImage.data;
+      let outputImage = outputContext.getImageData(0, 0, width, height);
+      let outputData = outputImage.data;
+
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          let pixelAddress = 4 * (y * width + x);
+          let grey =
+            sourceImageData[pixelAddress + R] +
+              sourceImageData[pixelAddress + G] +
+              sourceImageData[pixelAddress + B] ===
+              255 * 3
+              ? 255
+              : 0;
+
+          // if (x >= CX + RADIUS + BORDER) continue;
+          // if (x < CX - RADIUS - BORDER) continue;
+          // if (y >= CY + RADIUS + BORDER) continue;
+          // if (y < CY - RADIUS - BORDER) continue;
+
+          //just copy
+          // workingData[pixelAddress + R] += sourceImageData[pixelAddress + R];
+          // workingData[pixelAddress + G] += sourceImageData[pixelAddress + G];
+          // workingData[pixelAddress + B] += sourceImageData[pixelAddress + B];
+          // workingData[pixelAddress + A] += sourceImageData[pixelAddress + A];
+          workingData[pixelAddress + R] += 255 - grey;
+          workingData[pixelAddress + G] += 255 - grey;
+          workingData[pixelAddress + B] += 255 - grey;
+          workingData[pixelAddress + A] += grey;
+          outputData[pixelAddress + R] += 255 - grey;
+          outputData[pixelAddress + G] += 255 - grey;
+          outputData[pixelAddress + B] += 255 - grey;
+          outputData[pixelAddress + A] = 255;
+        }
+      }
+
+      outputImage.data = outputData;
+      outputContext.putImageData(
+        outputImage,
+        BORDER + RADIUS - CX,
+        BORDER + RADIUS - CY
+      );
+      outputDiv.appendChild(outputCanvas);
+
+      let edges = [];
+      for (let y = 1; y < height - 1; y++) {
+        for (let x = 1; x < width - 1; x++) {
+          let center = 4 * (y * width + x);
+          let top = 4 * ((y - 1) * width + x);
+          let right = 4 * (y * width + x + 1);
+          let bottom = 4 * ((y + 1) * width + x);
+          let left = 4 * (y * width + x - 1);
+
+          if (workingData[center] > 0) {
+            if (
+              workingData[top] === 0 ||
+              workingData[right] === 0 ||
+              workingData[bottom] === 0 ||
+              workingData[left] === 0
+            )
+              edges.push({
+                x,
+                y,
+                //cycle: 0.5 + (0.5 * Math.atan2(x - CX, y - CY)) / Math.PI,
+                cycle: ((Math.atan2(y - CY, x - CX) / 2 + 2.25 * Math.PI) / Math.PI) % 1, // 0 on top of screen (0,-1)) clockwise to 0.5 at bottom (0,1)
+                radius: Math.sqrt(Math.pow(x - CX, 2) + Math.pow(y - CY, 2)),
+              });
+          }
+        }
+      }
+      return edges;
+    }
+
+    function _cycleToHz(cycle) {
+      if (cycle < 0.5) {
+        return 10000 * cycle;
+      } else {
+        return Math.pow(
+          10,
+          Math.log10(5000) + Math.log10(2) * (cycle - 0.5) * 4
+        );
+      }
+    }
+
+    function cycleToHz(cycle) {
+      return 20 + 16000 * (1 - Math.sqrt(cycle));
+    }
+
+    function radiusToGain(radius) {
+      return (radius - 312) / 16 + 2/*adjust*/;
+    }
+
+    let img = document.getElementById("img");
+    let images = [
+      "01.png",
+      "02.png",
+    ];
+
+    let imageIndex = 0;
+    let border = [];
+    // img.setAttribute("src", images[imageIndex]);
+    document.addEventListener("keydown", (e) => {
+      switch (e.code) {
+        case "ArrowLeft":
+          imageIndex = (imageIndex + images.length - 1) % images.length;
+          break;
+        case "ArrowRight":
+          imageIndex = (imageIndex + 1) % images.length;
+          outputDiv.innerHTML = `${images[imageIndex]} ${imageIndex + 1} of ${images.length}`;
+          break;
+        case "ArrowDown":
+          console.log("".concat(
+            ...border.map(
+              (p) =>
+                `${p.cycle * 360}\t${cycleToHz(p.cycle)}\t${radiusToGain(
+                  p.radius
+                )}\r\n`
+            )
+          ));
+          break;
+        default:
+          console.log(e.code);
+      }
+      img.setAttribute("src", images[imageIndex]);
+    });
+
+    img.onload = function () {
+      border = [
+        // ...border,
+        ...getBorder(img).sort((a, b) => {
+          a.cycle - b.cycle;
+        }),
+      ];
+    };
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <title></title>
+</head>
+
+<body>
+    press numpad - or + to change quatization steps
+    <div style="display: none">
+        <img id="img" src="" />
+    </div>
+    <canvas id="output" />
+    <script>
+        const R = 0;
+        const G = 1;
+        const B = 2;
+        const A = 3;
+        let imageIndex = 0;
+        let images = [
+            ".\\01.png",
+            ".\\02.png",
+        ];
+        var img = document.getElementById("img");
+        img.setAttribute("src", images[imageIndex]);
+        var thresholdA = 0;
+        var thresholdB = 0;
+        var steps = 7;
+        document.addEventListener("keydown", (e) => {
+            switch (e.code) {
+                case "ArrowUp":
+                    thresholdA++;
+                    render();
+                    break;
+                case "ArrowDown":
+                    thresholdA--;
+                    render();
+                    break;
+                case "PageUp":
+                    thresholdB++;
+                    render();
+                    break;
+                case "PageDown":
+                    thresholdB--;
+                    render();
+                    break;
+                case "ArrowLeft":
+                    imageIndex = (imageIndex + images.length - 1) % images.length;
+                    render();
+                    break;
+                case "ArrowRight":
+                    imageIndex = (imageIndex + 1) % images.length;
+                    render();
+                    break;
+                case "NumpadAdd":
+                    steps++;
+                    render();
+                    break;
+                case "NumpadSubtract":
+                    steps--;
+                    render();
+                    break;
+                default:
+                    console.log(e.code);
+            }
+            img.setAttribute("src", images[imageIndex]);
+        });
+        function render() {
+            var workingCanvas = document.createElement("canvas");
+            var overlayCanvas = document.createElement("canvas");
+            var outputCanvas = document.getElementById("output");
+
+            var width, height;
+            workingCanvas.width = overlayCanvas.width = width = img.width;
+            workingCanvas.height = overlayCanvas.height = height = img.height;
+
+            var RADIUS = 288;
+            var [CX, CY] = [width / 2, height / 2];
+            var BORDER = 500 - 288;
+
+            outputCanvas.width = outputCanvas.height =
+                RADIUS + RADIUS + BORDER + BORDER;
+
+            var workingContext = workingCanvas.getContext("2d");
+            workingContext.drawImage(img, 0, 0);
+
+            var overlayContext = overlayCanvas.getContext("2d");
+            overlayContext.drawImage(img, 0, 0);
+
+            var outputContext = outputCanvas.getContext("2d");
+
+            var sourceImage = workingContext.getImageData(0, 0, width, height);
+            var sourceImageData = sourceImage.data;
+            var overlayImage = overlayContext.getImageData(0, 0, width, height);
+            var overlayImageData = overlayImage.data;
+            var outputImage = outputContext.getImageData(0, 0, width, height);
+            var outputData = outputImage.data;
+
+            for (var y = 0; y < height; y++) {
+                for (var x = 0; x < width; x++) {
+                    let pixelAddress = (y * width + x) * 4;
+                    var greyM_C =
+                        255 *
+                        ((255 * 2 -
+                            sourceImageData[pixelAddress + G] -
+                            sourceImageData[pixelAddress + B]) /
+                            (255 * 2 -
+                                sourceImageData[pixelAddress + R] -
+                                sourceImageData[pixelAddress + B])) -
+                        255;
+                    // greyM_C = greyM_C > thresholdA ? 255 : 0;
+
+                    var greyC_M =
+                        255 *
+                        ((255 * 2 -
+                            sourceImageData[pixelAddress + R] -
+                            sourceImageData[pixelAddress + G]) /
+                            (255 * 2 -
+                                sourceImageData[pixelAddress + B] -
+                                sourceImageData[pixelAddress + G])) -
+                        255;
+                    // var grey = greyC_M - greyM_C / 2;
+                    var grey = Math.round((sourceImageData[pixelAddress + B] - sourceImageData[pixelAddress + R]) / 255 * steps) * 64
+                    // var grey = Math.round((sourceImageData[pixelAddress + R] - sourceImageData[pixelAddress + B]) / 255 * 7) * 64
+
+                    outputData[pixelAddress + R] = 255 - grey;
+                    outputData[pixelAddress + G] = 255 - grey;
+                    outputData[pixelAddress + B] = 255 - grey;
+
+                    if (x >= CX + RADIUS + BORDER) continue;
+                    if (x < CX - RADIUS - BORDER) continue;
+                    if (y >= CY + RADIUS + BORDER) continue;
+                    if (y < CY - RADIUS - BORDER) continue;
+
+                    //just copy
+                    // outputData[pixelAddress + R] += sourceImageData[pixelAddress + R];
+                    // outputData[pixelAddress + G] += sourceImageData[pixelAddress + G];
+                    // outputData[pixelAddress + B] += sourceImageData[pixelAddress + B];
+                    // outputData[pixelAddress + A] += sourceImageData[pixelAddress + A];
+                    outputData[pixelAddress + A] = 255;
+                }
+            }
+
+            outputImage.data = outputData;
+            outputContext.putImageData(
+                outputImage,
+                BORDER + RADIUS - CX,
+                BORDER + RADIUS - CY
+            );
+        }
+        img.onload = render;
+    </script>
+</body>
+
+</html>
